@@ -24,6 +24,8 @@ func main() {
 	router.HandleFunc("/sensors", sensorHandler.ListSensors).Methods("GET")
 	router.HandleFunc("/sensors", sensorHandler.CreateSensor).Methods("POST")
 	router.HandleFunc("/sensors/{id}", sensorHandler.GetSensor).Methods("GET")
+	router.HandleFunc("/sensors/{id}", sensorHandler.UpdateSensor).Methods("PUT")
+	router.HandleFunc("/sensors/{id}", sensorHandler.DeleteSensor).Methods("DELETE")
 
 	// start the server
 	http.ListenAndServe(":8000", router)
@@ -50,6 +52,8 @@ type sensorStore interface {
 	Add(name string, sensor data.Sensor) error
 	Get(name string) (data.Sensor, error)
 	List() (map[string]data.Sensor, error)
+	Update(name string, sensor data.Sensor) error
+	Remove(name string) error
 }
 
 type SensorHandler struct {
@@ -120,4 +124,43 @@ func (h SensorHandler) GetSensor(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusOK)
 	w.Write(jsonBytes)
+}
+
+func (h SensorHandler) UpdateSensor(w http.ResponseWriter, r *http.Request) {
+	id := mux.Vars(r)["id"]
+
+	var sensor data.Sensor
+	if err := json.NewDecoder(r.Body).Decode(&sensor);err != nil {
+		InternalServerErrorhandler(w, r)
+		return
+	}
+
+	if err := h.store.Update(id, sensor); err != nil {
+		if err == data.NotFoundErr {
+			NotFoundHandler(w, r)
+			return
+		}
+		InternalServerErrorhandler(w, r)
+		return
+	}
+
+	jsonBytes, err := json.Marshal(sensor)
+	if err != nil {
+		InternalServerErrorhandler(w, r)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	w.Write(jsonBytes)
+}
+
+func (h SensorHandler) DeleteSensor(w http.ResponseWriter, r *http.Request)  {
+	id := mux.Vars(r)["id"]
+
+	if err := h.store.Remove(id); err != nil {
+		InternalServerErrorhandler(w, r)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
 }
